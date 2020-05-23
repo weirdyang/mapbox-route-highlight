@@ -190,6 +190,13 @@
             map.getSource('route').setData(geojson);
         }
 
+        function assembleUrl(points) {
+            return 'https://api.mapbox.com/optimized-trips/v1/mapbox/driving/' + points.join(';')
+                + '?&overview=full&steps=true&geometries=geojson&roundtrip=false&source=first&destination=last&access_token='
+                + mapboxgl.accessToken;
+
+        }
+
         function addEmptySourceWithSymbolLayer(sourceName, symbolName) {
             let empty = turf.featureCollection([]);
             map.addSource(sourceName, { type: "geojson", data: empty });
@@ -205,8 +212,8 @@
             });
         }
 
-        function addSourceSource(dataUrl, sourceName){
-           return fetchJson(dataUrl)
+        function addSourceSource(dataUrl, sourceName) {
+            return fetchJson(dataUrl)
                 .then(result => {
                     map.addSource(`${sourceName}`, { type: "geojson", data: result });
                 })
@@ -239,19 +246,39 @@
             });
             //let lineSource = turf.featureCollection([])
             map.addSource("lineSource", { type: "geojson", data: empty });
+            // map.addLayer({
+            //     'id': 'line-string',
+            //     'type': 'line',
+            //     'source': 'lineSource',
+            //     'layout': {
+            //         'line-join': 'round',
+            //         'line-cap': 'round'
+            //     },
+            //     'paint': {
+            //         'line-color': '#BF93E4',
+            //         'line-width': 5
+            //     }
+            // }, 'nearest-symbol');
+
             map.addLayer({
-                'id': 'LineString',
-                'type': 'line',
-                'source': 'lineSource',
-                'layout': {
+                id: 'routeline-active',
+                type: 'line',
+                source: 'lineSource',
+                layout: {
                     'line-join': 'round',
                     'line-cap': 'round'
                 },
-                'paint': {
-                    'line-color': '#BF93E4',
-                    'line-width': 5
+                paint: {
+                    'line-color': '#3887be',
+                    'line-width': [
+                        "interpolate",
+                        ["linear"],
+                        ["zoom"],
+                        12, 3,
+                        22, 12
+                    ]
                 }
-            }, 'nearest-symbol');
+            }, 'waterway-label');
             map.addSource("bufferSource", { type: "geojson", data: empty });
             map.addLayer({
                 "id": "poly",
@@ -285,27 +312,41 @@
             fetchJson(dataUrl)
                 .then(result => {
                     let stores = result.features;
+                    //console.log(stores);
                     let points = [];
                     routeAppData.collection.a.features.forEach(function (store, i) {
                         points.push([store.geometry.coordinates[0], store.geometry.coordinates[1]])
                     })
-                    console.log(points);
-                    let lineString = turf.lineString(points);
-                    let newlineSource = turf.featureCollection([lineString]);
-                    map.getSource('lineSource').setData(newlineSource)
-                    const newSource = turf.featureCollection([])
-                    let buffer = turf.buffer(lineString, 200, { units: 'meters' });
-                    console.log(buffer);
-                    result.features.forEach(function (store, i) {
-                        let point = turf.point([store.geometry.coordinates[0], store.geometry.coordinates[1]]);
-                        console.log(point);
-                        if (turf.booleanPointInPolygon(point, buffer)) {
-                            newSource.features.push(store);
-                        }
-                    });
-                    map.getSource('nearest').setData(newSource);
+                    // console.log(routeAppData.collection.a.features)
+                    // console.log(points);
+                    // let lineString = turf.lineString(points);
+                    //get linestring from api
+                    //console.log(assembleUrl(points))
+                    if (points.length > 1) {
 
-                    map.getSource('bufferSource').setData(buffer);
+                        fetchJson(assembleUrl(points))
+                            .then(answer => {
+                                let newlineSource = turf.featureCollection([
+                                    turf.feature(answer.trips[0].geometry)
+                                ]);
+                                map.getSource('lineSource').setData(newlineSource)
+                                console.log(newlineSource)
+                                const newSource = turf.featureCollection([])
+                                let buffer = turf.buffer(answer.trips[0].geometry, 200, { units: 'meters' });
+                                //console.log(buffer);
+                                stores.forEach(function (store, i) {
+                                    let point = turf.point([store.geometry.coordinates[0], store.geometry.coordinates[1]]);
+                                    //console.log(point);
+                                    if (turf.booleanPointInPolygon(point, buffer)) {
+                                        newSource.features.push(store);
+                                    }
+                                });
+                                map.getSource('nearest').setData(newSource);
+
+                                map.getSource('bufferSource').setData(buffer);
+                            })
+                    }
+
 
                 })
         }
