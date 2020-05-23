@@ -189,6 +189,28 @@
         function updateRoutePoints(geojson) {
             map.getSource('route').setData(geojson);
         }
+
+        function addEmptySourceWithSymbolLayer(sourceName, symbolName) {
+            let empty = turf.featureCollection([]);
+            map.addSource(sourceName, { type: "geojson", data: empty });
+            map.addLayer({
+                id: `${sourceName}-symbol`,
+                type: 'symbol',
+                source: `${sourceName}`,
+                layout: {
+                    'icon-allow-overlap': true,
+                    'icon-ignore-placement': true,
+                    'icon-image': `${symbolName}`,
+                }
+            });
+        }
+
+        function addSourceSource(dataUrl, sourceName){
+           return fetchJson(dataUrl)
+                .then(result => {
+                    map.addSource(`${sourceName}`, { type: "geojson", data: result });
+                })
+        }
         map.on('load', function () {
             // Create an empty GeoJSON feature collection for drop-off locations
             let empty = turf.featureCollection([]);
@@ -248,7 +270,7 @@
                 // and update the `dropoffs-symbol` layer
                 newRoutePoint(map.unproject(e.point));
                 updateRoutePoints(routeAppData.collection.a);
-                updateNearest();
+                updateNearest(storeGeo);
             });
             map.on("click", "nearest-symbol", function (e) {
                 let clickedPoint = e.features[0];
@@ -259,8 +281,8 @@
 
     </script>
     <script>
-        function updateNearest() {
-            fetchJson(toiletGeoJson)
+        function updateNearest(dataUrl) {
+            fetchJson(dataUrl)
                 .then(result => {
                     let stores = result.features;
                     let points = [];
