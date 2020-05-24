@@ -9,7 +9,7 @@ kudos to cerivitos for the geojson; https://github.com/cerivitos/INeedToilet
 
 ## [Optimized Route Planner - highlights Muis Halal Certified Eating Establishments along the route](https://captmomo.github.io/mapbox-route-highlight/muis-halal/index.html)  
   
-Restaurant data liberated from the [MUIS HALAL CERTIFIED EATING ESTABLISHMENTS](https://www.muis.gov.sg/-/media/Files/Halal/Documents/EE-List---07-Nov-2018.pdf) using [tabula](https://github.com/tabulapdf/tabula)  
+Restaurant data liberated from the [MUIS HALAL CERTIFIED EATING ESTABLISHMENTS](https://www.muis.gov.sg/-/media/Files/Halal/Documents/EE-List-5-Dec-18-v2.pdf) using [tabula](https://github.com/tabulapdf/tabula)  
   
 Data cleaned using pandas and then geocoded using arcgis geocoding api and this [site](https://geocode.localfocus.nl/)  
   
