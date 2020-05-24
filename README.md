@@ -13,5 +13,7 @@ Restaurant data liberated from the [MUIS HALAL CERTIFIED EATING ESTABLISHMENTS](
   
 Data cleaned using pandas and then geocoded using arcgis geocoding api and this [site](https://geocode.localfocus.nl/)  
   
+Double click to set a point, the first point will be the start and final point is the destination.
+  
 [Route generated using Mapbox Optimization API](https://docs.mapbox.com/help/tutorials/optimization-api/)
  
