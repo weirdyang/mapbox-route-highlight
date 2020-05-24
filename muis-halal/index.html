@@ -3,7 +3,7 @@
 
 <head>
     <meta charset='utf-8' />
-    <title>Where's the toilets?!</title>
+    <title>Optimized Route Planner - highlights Halal food stores along the route</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
     <!--import bulma-->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.8.2/css/bulma.min.css">
@@ -167,11 +167,8 @@
 
         };
 
-        const storeGeo = 'https://raw.githubusercontent.com/captmomo/iso-hawker-nearby/master/hawkers.geojson';
+        const storeGeo = 'https://raw.githubusercontent.com/captmomo/mapbox-route-highlight/master/muis-halal/storegeojson.json';
 
-        const macGeoJson = 'https://gist.githubusercontent.com/captmomo/b19136360712e691c0898c4b34842965/raw/d5e420345edd4fea8555856ca1977be9e5765bf7/mcdonalds.geojson';
-
-        const toiletGeoJson = 'https://raw.githubusercontent.com/captmomo/INeedToilet/master/src/data/toilets.geojson';
 
         function newRoutePoint(coords) {
             // Store the clicked point as a new GeoJSON feature with
@@ -229,7 +226,7 @@
                 layout: {
                     'icon-allow-overlap': true,
                     'icon-ignore-placement': true,
-                    'icon-image': 'waterfall-15',
+                    'icon-image': 'restaurant-15',
                 }
             });
             let routeSource = routeAppData.collection.a;
@@ -278,7 +275,7 @@
                         22, 12
                     ]
                 }
-            }, 'waterway-label');
+            }, 'nearest-symbol');
             map.addSource("bufferSource", { type: "geojson", data: empty });
             map.addLayer({
                 "id": "poly",
@@ -286,10 +283,41 @@
                 "source": 'bufferSource',
                 "layout": {},
                 "paint": {
-                    "fill-color": '#d9d838',
+                    "fill-color": '#1f75fe',
                     "fill-opacity": 0.3
                 }
-            });
+            }, 'nearest-symbol');
+
+
+            map.addLayer({
+                id: 'routearrows',
+                type: 'symbol',
+                source: 'lineSource',
+                layout: {
+                    'symbol-placement': 'line',
+                    'text-field': '▶',
+                    'text-size': [
+                        "interpolate",
+                        ["linear"],
+                        ["zoom"],
+                        12, 24,
+                        22, 60
+                    ],
+                    'symbol-spacing': [
+                        "interpolate",
+                        ["linear"],
+                        ["zoom"],
+                        12, 30,
+                        22, 160
+                    ],
+                    'text-keep-upright': false
+                },
+                paint: {
+                    'text-color': '#3887be',
+                    'text-halo-color': 'rgb(123, 0, 255)',
+                    'text-halo-width': 1
+                }
+            }, 'nearest-symbol');
             map.doubleClickZoom.disable();
             // Listen for a click on the map
             map.on('dblclick', function (e) {
@@ -351,12 +379,12 @@
                 })
         }
 
-        function constructPopup(toilet) {
+        function constructPopup(store) {
             let template = `
             <div class="card">
   <header class="card-header">
     <span class="card-header-title">
-      <p class="title is-4">${toilet.name}</p>
+      <p class="title is-4">${store.Name}</p>
     <span>
   </header>
   <div class="card-content">
@@ -364,19 +392,14 @@
     <div class="content">
         <div class="field">
             <label class="label">Address</label>
-            <span class="has-text">${toilet.address}</span>
-            <p class="has-text">  ${toilet.type} </p>
-        </div>
-        
-        <div class="field">
-            <label class="label">Rating</label>
-            <span class="has-text">${toilet.rating} Stars</span>
+            <span class="has-text">${store.full_address}</span>
+            <p class="has-text"> S ${store.Postal} </p>
         </div>
         
     </div>
   </div>
   <footer class="card-footer">
-    ${toilet.gallery_link ? '<a class="card-footer-item" target="_blank" href="' + toilet.gallery_link + '">Gallery Link</a>' : ''}
+   
   </footer>
 </div>
             `
