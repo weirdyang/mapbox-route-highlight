@@ -17,5 +17,5 @@ Double click to set a point, the first point will be the start and final point i
   
 [Route generated using Mapbox Optimization API](https://docs.mapbox.com/help/tutorials/optimization-api/)
 
-![screenshot](/muis-halal/sample.png)
+![screenshot](https://github.com/weirdyang/mapbox-route-highlight/blob/master/muis-halal/sample.PNG?raw=true)
  
