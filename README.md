@@ -16,4 +16,6 @@ Data cleaned using pandas and then geocoded using arcgis geocoding api and this 
 Double click to set a point, the first point will be the start and final point is the destination.
   
 [Route generated using Mapbox Optimization API](https://docs.mapbox.com/help/tutorials/optimization-api/)
+
+![screenshot](muis-halal/sample.png)
  
