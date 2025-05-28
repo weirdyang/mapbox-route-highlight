@@ -449,19 +449,19 @@
         }
 
         // Clear route and reset
-        function clearRoute() {
-            startPoint = null;
-            endPoint = null;
-            routeToilets = [];
-            currentRoute = null;
-            if (routingControl && map.hasLayer(routingControl)) {
-                map.removeControl(routingControl);
-                routingControl = null;
-            }
-            userMarkers.clearLayers();
-            addToiletMarkers();
-            hideStatus();
-        }
+function clearRoute() {
+    startPoint = null;
+    endPoint = null;
+    routeToilets = [];
+    currentRoute = null;
+    if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
+    }
+    userMarkers.clearLayers();
+    addToiletMarkers();
+    hideStatus();
+}
 
         // Find nearest toilet to user's location
         function findNearestToilet() {
