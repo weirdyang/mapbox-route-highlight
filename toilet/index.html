@@ -232,7 +232,7 @@
         let toiletMarkers = L.layerGroup().addTo(map);
         let routeToilets = [];
         let userMarkers = L.layerGroup().addTo(map);
-
+        let routingControl = null;
         // Color mapping for toilet ratings
         const ratingColors = {
             1: '#ff4444', 2: '#ff4444',
