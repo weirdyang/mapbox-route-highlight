@@ -284,76 +284,74 @@
         map.on('click', function(e) {
             if (!startPoint) {
                 startPoint = e.latlng;
-                const marker = L.marker(startPoint, {
-                    icon: L.divIcon({
-                        className: 'custom-div-icon',
-                        html: "<div style='background-color:#4CAF50;width:20px;height:20px;border-radius:50%;border:2px solid white;'></div>",
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
-                    })
-                });
-                userMarkers.addLayer(marker);
                 showStatus('Start point set! Click another location for end point.');
             } else if (!endPoint) {
                 endPoint = e.latlng;
-                const marker = L.marker(endPoint, {
-                    icon: L.divIcon({
-                        className: 'custom-div-icon',
-                        html: "<div style='background-color:#F44336;width:20px;height:20px;border-radius:50%;border:2px solid white;'></div>",
-                        iconSize: [20, 20],
-                        iconAnchor: [10, 10]
-                    })
-                });
-                userMarkers.addLayer(marker);
                 calculateRoute();
             }
         });
 
-        // Calculate route using OpenRouteService
-        async function calculateRoute() {
+        // Calculate route using Leaflet Routing Machine (free!)
+        function calculateRoute() {
             if (!startPoint || !endPoint) return;
             
             showStatus('Calculating route...');
             
-            try {
-                const coords = `${startPoint.lng},${startPoint.lat};${endPoint.lng},${endPoint.lat}`;
-                const response = await fetch(`https://api.openrouteservice.org/v2/directions/foot-walking?api_key=5b3ce3597851110001cf6248d65b56e3e4804ad8844ea6e0b0b8f6c2&coordinates=${coords}&format=geojson`);
-                const data = await response.json();
-                
-                if (data.features && data.features[0]) {
-                    // Add route to map
-                    if (routeLayer) map.removeLayer(routeLayer);
-                    routeLayer = L.geoJSON(data.features[0], {
-                        style: {
-                            color: '#3388ff',
-                            weight: 4,
-                            opacity: 0.7
-                        }
-                    }).addTo(map);
-                    
-                    // Find toilets along route
-                    findToiletsAlongRoute(data.features[0]);
-                    
-                    // Fit map to route
-                    map.fitBounds(routeLayer.getBounds(), { padding: [20, 20] });
-                    
-                    const distance = (data.features[0].properties.segments[0].distance / 1000).toFixed(2);
-                    const duration = Math.round(data.features[0].properties.segments[0].duration / 60);
-                    showStatus(`Route calculated! Distance: ${distance}km, Walking time: ${duration} minutes`);
-                } else {
-                    showStatus('Could not calculate route. Try different points.');
-                }
-            } catch (error) {
-                console.error('Routing error:', error);
-                showStatus('Error calculating route. Please try again.');
+            // Remove existing routing control
+            if (routingControl) {
+                map.removeControl(routingControl);
             }
+            
+            // Create new routing control
+            routingControl = L.Routing.control({
+                waypoints: [startPoint, endPoint],
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1',
+                    profile: 'foot' // Walking route
+                }),
+                routeWhileDragging: false,
+                addWaypoints: false,
+                createMarker: function(i, waypoint, n) {
+                    const isStart = i === 0;
+                    return L.marker(waypoint.latLng, {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style='background-color:${isStart ? '#4CAF50' : '#F44336'};width:20px;height:20px;border-radius:50%;border:2px solid white;'></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })
+                    });
+                },
+                lineOptions: {
+                    styles: [{color: '#3388ff', opacity: 0.7, weight: 4}]
+                }
+            }).addTo(map);
+            
+            // Handle route found
+            routingControl.on('routesfound', function(e) {
+                const route = e.routes[0];
+                currentRoute = route; // Store current route
+                const distance = (route.summary.totalDistance / 1000).toFixed(2);
+                const duration = Math.round(route.summary.totalTime / 60);
+                
+                // Find toilets along route
+                findToiletsAlongRoute(route);
+                
+                showStatus(`Route calculated! Distance: ${distance}km, Walking time: ${duration} minutes`);
+            });
+            
+            // Handle routing errors
+            routingControl.on('routingerror', function(e) {
+                console.error('Routing error:', e);
+                showStatus('Could not calculate route. Please try different points.');
+            });
         }
 
         // Find toilets within buffer distance of route
-        function findToiletsAlongRoute(routeFeature) {
+        function findToiletsAlongRoute(route) {
             const bufferDistance = parseInt(document.getElementById('bufferDistance').value);
             const minRating = parseInt(document.getElementById('minRating').value);
-            const routeCoords = routeFeature.geometry.coordinates;
+            const routeCoords = route.coordinates; // Route coordinates from Leaflet Routing Machine
             
             routeToilets = [];
             
@@ -365,7 +363,7 @@
                     // Check if toilet is within buffer of any route point
                     let isNearRoute = false;
                     for (let i = 0; i < routeCoords.length; i++) {
-                        const routePoint = [routeCoords[i][1], routeCoords[i][0]]; // [lat, lng]
+                        const routePoint = [routeCoords[i].lat, routeCoords[i].lng]; // [lat, lng]
                         const distance = getDistanceBetweenPoints(toiletPoint, routePoint);
                         
                         if (distance <= bufferDistance) {
@@ -443,7 +441,11 @@
             startPoint = null;
             endPoint = null;
             routeToilets = [];
-            if (routeLayer) map.removeLayer(routeLayer);
+            currentRoute = null;
+            if (routingControl) {
+                map.removeControl(routingControl);
+                routingControl = null;
+            }
             userMarkers.clearLayers();
             addToiletMarkers();
             hideStatus();
@@ -506,17 +508,14 @@
 
         // Event listeners for controls
         document.getElementById('bufferDistance').addEventListener('change', function() {
-            if (routeLayer && routeToilets.length > 0) {
-                // Recalculate toilets along route with new buffer
-                const routeFeature = routeLayer.toGeoJSON().features[0];
-                findToiletsAlongRoute(routeFeature);
+            if (currentRoute) {
+                findToiletsAlongRoute(currentRoute);
             }
         });
 
         document.getElementById('minRating').addEventListener('change', function() {
-            if (routeLayer && routeToilets.length > 0) {
-                const routeFeature = routeLayer.toGeoJSON().features[0];
-                findToiletsAlongRoute(routeFeature);
+            if (currentRoute) {
+                findToiletsAlongRoute(currentRoute);
             } else {
                 addToiletMarkers();
             }
