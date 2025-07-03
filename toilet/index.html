@@ -345,7 +345,7 @@
                 currentRoute = route; // Store current route
                 const distance = (route.summary.totalDistance / 1000).toFixed(2);
                 const duration = Math.round(route.summary.totalTime / 60);
-                
+                console.log(currentRoute, 'currentRoute');
                 // Find toilets along route
                 findToiletsAlongRoute(route);
                 
