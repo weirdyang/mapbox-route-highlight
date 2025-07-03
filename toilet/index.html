@@ -288,7 +288,7 @@
         }
         let toiletData = {};
         document.addEventListener('DOMContentLoaded', async () => {
-            const dataRes = await fetch('/mapbox-route-highlight/toilet/toilets.geojson);
+            const dataRes = await fetch('./toilets.geojson');
             toiletData = await dataRes.json();
             addToiletMarkers(toiletData);
         });
