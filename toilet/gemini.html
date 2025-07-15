@@ -113,20 +113,31 @@
             font-size: 13px;
             display: none;
         }
-        #map {
-            flex: 1;
-            height: 100vh;
-            position: relative; /* Needed for absolute positioning of Three.js canvas */
-        }
-        #threejs-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none; /* Allows map interactions through the canvas */
-            z-index: 500; /* Below Leaflet markers (default 600) but above map tiles */
-        }
+    #map {
+        flex: 1;
+        height: 100vh;
+        position: relative;
+    }
+    #threejs-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        /* REMOVE this line: pointer-events: none; */
+        z-index: 500; /* Three.js overlay is now clickable, keep its z-index for layering */
+    }
+
+    /* Ensure Leaflet markers are above the Three.js overlay */
+    .leaflet-pane.leaflet-marker-pane {
+        z-index: 600; /* Default Leaflet marker pane z-index is often around 250, increase to be above Three.js */
+    }
+    .leaflet-pane.leaflet-popup-pane {
+        z-index: 700; /* Ensure popups are above markers */
+    }
+    .leaflet-routing-container {
+        display: none; /* Keep this as per original to hide routing machine UI */
+    }
         .toilet-popup {
             min-width: 200px;
         }
