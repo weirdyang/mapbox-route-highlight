@@ -139,10 +139,315 @@
   </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
-  <script>
-    // Reinsert full app logic here (it's lengthy)
-    // Load toilet data, handle routing, geolocation, filtering, UI feedback
-  </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-routing-machine/3.2.12/leaflet-routing-machine.min.js"></script>
+    <script>
+
+        // Initialize map
+        const map = L.map('map').setView([1.3521, 103.8198], 11);
+        
+        // Add tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Declare all variables at the top
+        let startPoint = null;
+        let endPoint = null;
+        let routingControl = null;
+        let currentRoute = null;
+        let routeToilets = [];
+        let toiletMarkers = L.layerGroup().addTo(map);
+        let userMarkers = L.layerGroup().addTo(map);
+
+        // Color mapping for toilet ratings
+        const ratingColors = {
+            1: '#ff4444', 2: '#ff4444',
+            3: '#ff9800',
+            4: '#4caf50',
+            5: '#2196f3',
+            6: '#9c27b0'
+        };
+
+        // Add toilet markers to map
+        function addToiletMarkers(toiletData) {
+            toiletMarkers.clearLayers();
+            const minRating = parseInt(document.getElementById('minRating').value);
+            
+            toiletData.features.forEach(toilet => {
+                if (toilet.properties.rating >= minRating) {
+                    const coords = toilet.geometry.coordinates;
+                    const props = toilet.properties;
+                    
+                    const marker = L.circleMarker([coords[1], coords[0]], {
+                        radius: 6,
+                        fillColor: ratingColors[props.rating] || '#gray',
+                        color: '#white',
+                        weight: 1,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    });
+                    
+                    const popupContent = `
+                        <div class="toilet-popup">
+                            <h4>${props.name}</h4>
+                            <p><strong>Type:</strong> ${props.type}</p>
+                            <p><strong>Address:</strong> ${props.address}</p>
+                            <p><strong>Rating:</strong> <span class="rating">${props.rating} ⭐</span></p>
+                            ${props.gallery_link ? `<p><a href="${props.gallery_link}" target="_blank">View Gallery</a></p>` : ''}
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                    toiletMarkers.addLayer(marker);
+                }
+            });
+        }
+        let toiletData = {};
+        document.addEventListener('DOMContentLoaded', async () => {
+            const dataRes = await fetch('./toilets.geojson');
+            toiletData = await dataRes.json();
+            addToiletMarkers(toiletData);
+        });
+        // Handle map clicks for route planning
+        map.on('click', function(e) {
+            if (!startPoint) {
+                startPoint = e.latlng;
+                showStatus('Start point set! Click another location for end point.');
+            } else if (!endPoint) {
+                endPoint = e.latlng;
+                calculateRoute();
+            }
+        });
+
+        // Calculate route using Leaflet Routing Machine (free!)
+        function calculateRoute() {
+            if (!startPoint || !endPoint) return;
+            
+            showStatus('Calculating route...');
+            
+            // Remove existing routing control if it exists
+            if (routingControl && map.hasLayer(routingControl)) {
+                map.removeControl(routingControl);
+            }
+            
+            // Create new routing control
+            routingControl = L.Routing.control({
+                waypoints: [startPoint, endPoint],
+                router: L.Routing.osrmv1({
+                    serviceUrl: 'https://router.project-osrm.org/route/v1',
+                    profile: 'foot' // Walking route
+                }),
+                routeWhileDragging: false,
+                addWaypoints: false,
+                createMarker: function(i, waypoint, n) {
+                    const isStart = i === 0;
+                    return L.marker(waypoint.latLng, {
+                        icon: L.divIcon({
+                            className: 'custom-div-icon',
+                            html: `<div style='background-color:${isStart ? '#4CAF50' : '#F44336'};width:20px;height:20px;border-radius:50%;border:2px solid white;'></div>`,
+                            iconSize: [20, 20],
+                            iconAnchor: [10, 10]
+                        })
+                    });
+                },
+                lineOptions: {
+                    styles: [{color: '#3388ff', opacity: 0.7, weight: 4}]
+                }
+            }).addTo(map);
+            
+            // Handle route found
+            routingControl.on('routesfound', function(e) {
+                const route = e.routes[0];
+                currentRoute = route; // Store current route
+                const distance = (route.summary.totalDistance / 1000).toFixed(2);
+                const duration = Math.round(route.summary.totalTime / 60);
+                console.log(currentRoute, 'currentRoute');
+                // Find toilets along route
+                findToiletsAlongRoute(route);
+                
+                showStatus(`Route calculated! Distance: ${distance}km, Walking time: ${duration} minutes`);
+            });
+            
+            // Handle routing errors
+            routingControl.on('routingerror', function(e) {
+                console.error('Routing error:', e);
+                showStatus('Could not calculate route. Please try different points.');
+            });
+        }
+
+        // Find toilets within buffer distance of route
+        function findToiletsAlongRoute(route) {
+            const bufferDistance = parseInt(document.getElementById('bufferDistance').value);
+            const minRating = parseInt(document.getElementById('minRating').value);
+            const routeCoords = route.coordinates; // Route coordinates from Leaflet Routing Machine
+            
+            routeToilets = [];
+            
+            toiletData.features.forEach(toilet => {
+                if (toilet.properties.rating >= minRating) {
+                    const toiletCoords = toilet.geometry.coordinates;
+                    const toiletPoint = [toiletCoords[1], toiletCoords[0]]; // [lat, lng]
+                    
+                    // Check if toilet is within buffer of any route point
+                    let isNearRoute = false;
+                    for (let i = 0; i < routeCoords.length; i++) {
+                        const routePoint = [routeCoords[i].lat, routeCoords[i].lng]; // [lat, lng]
+                        const distance = getDistanceBetweenPoints(toiletPoint, routePoint);
+                        
+                        if (distance <= bufferDistance) {
+                            isNearRoute = true;
+                            break;
+                        }
+                    }
+                    
+                    if (isNearRoute) {
+                        routeToilets.push(toilet);
+                    }
+                }
+            });
+            
+            // Highlight route toilets
+            highlightRouteToilets();
+            showStatus(`Found ${routeToilets.length} toilets along your route!`);
+        }
+
+        // Highlight toilets along route
+        function highlightRouteToilets() {
+            toiletMarkers.clearLayers();
+            const minRating = parseInt(document.getElementById('minRating').value);
+            
+            toiletData.features.forEach(toilet => {
+                if (toilet.properties.rating >= minRating) {
+                    const coords = toilet.geometry.coordinates;
+                    const props = toilet.properties;
+                    const isRouteToilet = routeToilets.includes(toilet);
+                    
+                    const marker = L.circleMarker([coords[1], coords[0]], {
+                        radius: isRouteToilet ? 8 : 6,
+                        fillColor: ratingColors[props.rating] || '#gray',
+                        color: isRouteToilet ? '#ffffff' : '#ffffff',
+                        weight: isRouteToilet ? 3 : 1,
+                        opacity: 1,
+                        fillOpacity: isRouteToilet ? 1 : 0.6
+                    });
+                    
+                    const popupContent = `
+                        <div class="toilet-popup">
+                            <h4>${props.name} ${isRouteToilet ? '🎯' : ''}</h4>
+                            <p><strong>Type:</strong> ${props.type}</p>
+                            <p><strong>Address:</strong> ${props.address}</p>
+                            <p><strong>Rating:</strong> <span class="rating">${props.rating} ⭐</span></p>
+                            ${isRouteToilet ? '<p style="color: #4CAF50; font-weight: bold;">✓ Along your route!</p>' : ''}
+                            ${props.gallery_link ? `<p><a href="${props.gallery_link}" target="_blank">View Gallery</a></p>` : ''}
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent);
+                    toiletMarkers.addLayer(marker);
+                }
+            });
+        }
+
+        // Calculate distance between two points in meters
+        function getDistanceBetweenPoints(point1, point2) {
+            const R = 6371e3; // Earth's radius in metres
+            const φ1 = point1[0] * Math.PI/180;
+            const φ2 = point2[0] * Math.PI/180;
+            const Δφ = (point2[0]-point1[0]) * Math.PI/180;
+            const Δλ = (point2[1]-point1[1]) * Math.PI/180;
+
+            const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                      Math.cos(φ1) * Math.cos(φ2) *
+                      Math.sin(Δλ/2) * Math.sin(Δλ/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+            return R * c;
+        }
+
+        // Clear route and reset
+function clearRoute() {
+    startPoint = null;
+    endPoint = null;
+    routeToilets = [];
+    currentRoute = null;
+    if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
+    }
+    userMarkers.clearLayers();
+    addToiletMarkers();
+    hideStatus();
+}
+
+        // Find nearest toilet to user's location
+        function findNearestToilet() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    const userLat = position.coords.latitude;
+                    const userLng = position.coords.longitude;
+                    const userPos = [userLat, userLng];
+                    
+                    let nearestToilet = null;
+                    let minDistance = Infinity;
+                    
+                    toiletData.features.forEach(toilet => {
+                        const coords = toilet.geometry.coordinates;
+                        const toiletPos = [coords[1], coords[0]];
+                        const distance = getDistanceBetweenPoints(userPos, toiletPos);
+                        
+                        if (distance < minDistance) {
+                            minDistance = distance;
+                            nearestToilet = toilet;
+                        }
+                    });
+                    
+                    if (nearestToilet) {
+                        const coords = nearestToilet.geometry.coordinates;
+                        map.setView([coords[1], coords[0]], 16);
+                        
+                        // Find the marker and open its popup
+                        toiletMarkers.eachLayer(function(layer) {
+                            if (layer.getLatLng().lat === coords[1] && layer.getLatLng().lng === coords[0]) {
+                                layer.openPopup();
+                            }
+                        });
+                        
+                        showStatus(`Nearest toilet: ${nearestToilet.properties.name} (${Math.round(minDistance)}m away)`);
+                    }
+                }, function(error) {
+                    showStatus('Could not get your location. Please enable location services.');
+                });
+            } else {
+                showStatus('Geolocation is not supported by this browser.');
+            }
+        }
+
+        // Show status message
+        function showStatus(message) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.display = 'block';
+        }
+
+        // Hide status message
+        function hideStatus() {
+            document.getElementById('status').style.display = 'none';
+        }
+
+        // Event listeners for controls
+        document.getElementById('bufferDistance').addEventListener('change', function() {
+            if (currentRoute) {
+                findToiletsAlongRoute(currentRoute);
+            }
+        });
+
+        document.getElementById('minRating').addEventListener('change', function() {
+            if (currentRoute) {
+                findToiletsAlongRoute(currentRoute);
+            } else {
+                addToiletMarkers();
+            }
+        });
+    </script>
 </body>
 </html>
